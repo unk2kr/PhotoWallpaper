@@ -93,7 +93,7 @@ object NetworkDiagnostics {
                         caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile"
                         caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
                         caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "Bluetooth"
-                        else -> "Unknown (${caps.transportTypes.joinToString()})"
+                        else -> "Unknown"
                     }
                 } catch (e: Exception) { "Error: ${e.message}" }
                 sb.appendLine("  Тип: $type")
