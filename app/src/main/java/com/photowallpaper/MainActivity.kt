@@ -6,6 +6,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -17,6 +18,8 @@ import kotlinx.coroutines.launch
 /**
  * Главный экран: галерея «фото дня» Bing + настройки автосмены обоев.
  * Авторизация не нужна — используется публичный эндпоинт Bing.
+ *
+ * Интервал смены задаётся слайдером: любое целое число часов от 1 до 24.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +41,12 @@ class MainActivity : AppCompatActivity() {
         loadGallery()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Показываем ошибку, если фоновый воркер не смог скачать фото.
+        renderError(settings.lastError)
+    }
+
     private fun setupListeners() {
         binding.switchEnable.setOnCheckedChangeListener { _, checked ->
             if (restoring) return@setOnCheckedChangeListener
@@ -49,29 +58,62 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.radioGroupInterval.setOnCheckedChangeListener { _, checkedId ->
-            if (restoring) return@setOnCheckedChangeListener
-            settings.intervalMinutes = when (checkedId) {
-                R.id.radioDaily -> SettingsManager.INTERVAL_DAILY_MINUTES
-                else -> SettingsManager.DEFAULT_INTERVAL_MINUTES
+        // Слайдер: progress 0..23 -> часы 1..24.
+        binding.seekInterval.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                binding.textIntervalValue.text = intervalLabel(progress + 1)
             }
-            if (settings.isEnabled) {
-                WallpaperWorker.schedulePeriodic(this, settings.intervalMinutes)
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                if (restoring) return
+                val hours = (binding.seekInterval.progress + 1)
+                    .coerceIn(
+                        SettingsManager.MIN_INTERVAL_HOURS,
+                        SettingsManager.MAX_INTERVAL_HOURS
+                    )
+                settings.intervalHours = hours
+                if (settings.isEnabled) {
+                    WallpaperWorker.schedulePeriodic(this@MainActivity, settings.intervalMinutes)
+                }
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.toast_interval_saved, intervalLabel(hours)),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-        }
+        })
 
         binding.buttonChangeNow.setOnClickListener { changeNow() }
     }
-
     private fun loadState() {
         restoring = true
         binding.switchEnable.isChecked = settings.isEnabled
-        val daily = settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES
-        binding.radioHourly.isChecked = !daily
-        binding.radioDaily.isChecked = daily
+        val hours = settings.intervalHours
+        binding.seekInterval.progress = (hours - 1)
+            .coerceIn(0, SettingsManager.MAX_INTERVAL_HOURS - 1)
+        binding.textIntervalValue.text = intervalLabel(hours)
         binding.textLastWallpaper.text =
             settings.lastWallpaperInfo ?: getString(R.string.current_none)
         restoring = false
+    }
+
+    /** Текстовое представление интервала в часах. */
+    private fun intervalLabel(hours: Int): String = when (hours) {
+        1 -> getString(R.string.interval_value_1)
+        SettingsManager.MAX_INTERVAL_HOURS -> getString(R.string.interval_value_24)
+        else -> getString(R.string.interval_value_hours, hours)
+    }
+
+    /** Показ/скрытие блока с последней ошибкой скачивания. */
+    private fun renderError(error: String?) {
+        if (error.isNullOrBlank()) {
+            binding.textError.isVisible = false
+        } else {
+            binding.textError.text = "${getString(R.string.error_title)}: $error"
+            binding.textError.isVisible = true
+        }
     }
 
     private fun loadGallery() {
@@ -91,8 +133,10 @@ class MainActivity : AppCompatActivity() {
             if (images.isEmpty()) {
                 binding.textGalleryStatus.setText(R.string.gallery_status_error)
                 binding.textGalleryStatus.isVisible = true
+                binding.textTapHint.isVisible = false
             } else {
                 binding.textGalleryStatus.isVisible = false
+                binding.textTapHint.isVisible = true
             }
             renderGallery(images)
         }
@@ -160,8 +204,8 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.gallery_status_error, Toast.LENGTH_SHORT).show()
             return
         }
-        val index = if (settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES) {
-            0
+        val index = if (settings.intervalHours >= SettingsManager.MAX_INTERVAL_HOURS) {
+            0 // суточный режим: фото дня
         } else {
             val i = (settings.startOffset + settings.rotationCount) % gallery.size
             settings.rotationCount += 1
@@ -170,7 +214,7 @@ class MainActivity : AppCompatActivity() {
         applyImage(gallery[index])
     }
 
-    /** Скачивает UHD и ставит обоями (с прогресс-состоянием кнопки). */
+    /** Скачивает фото (с запасными разрешениями) и ставит его обоями. */
     private fun applyImage(image: BingImage) {
         Toast.makeText(this, R.string.toast_applying, Toast.LENGTH_SHORT).show()
         binding.buttonChangeNow.isEnabled = false
@@ -181,10 +225,12 @@ class MainActivity : AppCompatActivity() {
                 val info = "${image.dateLabel()} • ${image.copyright}"
                 settings.lastWallpaperInfo = info
                 binding.textLastWallpaper.text = info
+                renderError(null)
                 Toast.makeText(this@MainActivity, R.string.toast_applied_ok, Toast.LENGTH_SHORT)
                     .show()
             } else {
-                Toast.makeText(this@MainActivity, R.string.toast_applied_fail, Toast.LENGTH_SHORT)
+                renderError(settings.lastError)
+                Toast.makeText(this@MainActivity, R.string.toast_applied_fail, Toast.LENGTH_LONG)
                     .show()
             }
         }

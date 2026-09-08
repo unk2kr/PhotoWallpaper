@@ -11,46 +11,42 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <!-- Заголовок -->
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/textTitle"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/title"
             android:textAppearance="?attr/textAppearanceHeadlineSmall"
             android:textStyle="bold" />
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/textSubtitle"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/subtitle"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-        <!-- Галерея превью -->
         <TextView
-            android:id="@+id/textGalleryTitle"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="24dp"
             android:text="@string/gallery_title"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textStyle="bold" />
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <TextView
             android:id="@+id/textGalleryStatus"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="8dp"
             android:text="@string/gallery_status_loading"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
 
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:scrollbars="horizontal">
+            android:layout_marginTop="8dp"
+            android:scrollbars="none">
 
             <LinearLayout
                 android:id="@+id/previewContainer"
@@ -60,75 +56,98 @@
         </HorizontalScrollView>
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/textTapHint"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:text="@string/tap_hint"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textAppearance="?attr/textAppearanceBodySmall" />
 
-        <!-- Включение автосмены -->
-        <com.google.android.material.switchmaterial.SwitchMaterial
+        <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switchEnable"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/autowallpaper" />
-
-        <!-- Интервал смены -->
+            android:layout_marginTop="24dp"
+            android:text="@string/autowallpaper"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:text="@string/interval_title"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:id="@+id/textIntervalValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceHeadlineSmall"
             android:textStyle="bold" />
 
-        <RadioGroup
-            android:id="@+id/radioGroupInterval"
+        <SeekBar
+            android:id="@+id/seekInterval"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:max="23" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <RadioButton
-                android:id="@+id/radioHourly"
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/interval_hourly" />
+                android:gravity="start"
+                android:text="1 ч"
+                android:textAppearance="?attr/textAppearanceBodySmall" />
 
-            <RadioButton
-                android:id="@+id/radioDaily"
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/interval_daily" />
-        </RadioGroup>
+                android:gravity="center"
+                android:text="12 ч"
+                android:textAppearance="?attr/textAppearanceBodySmall" />
 
-        <!-- Старт ротации -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:text="24 ч"
+                android:textAppearance="?attr/textAppearanceBodySmall" />
+        </LinearLayout>
+
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="4dp"
+            android:text="@string/interval_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
             android:text="@string/start_title"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textStyle="bold" />
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <Spinner
             android:id="@+id/spinnerStart"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="4dp" />
 
-        <!-- Текущие обои -->
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:text="@string/current_title"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textStyle="bold" />
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <TextView
             android:id="@+id/textLastWallpaper"
@@ -136,15 +155,24 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/current_none"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-        <!-- Кнопка -->
+        <TextView
+            android:id="@+id/textError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="#B3261E"
+            android:visibility="gone" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonChangeNow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/change_now" />
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"
+            android:text="@string/change_now"
+            app:cornerRadius="12dp" />
     </LinearLayout>
 </ScrollView>

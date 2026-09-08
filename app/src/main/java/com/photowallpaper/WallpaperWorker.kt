@@ -9,10 +9,10 @@ import java.util.concurrent.TimeUnit
  * Фоновая задача WorkManager: периодическая смена обоев
  * на «фото дня» Bing.
  *
- * Режимы:
- *  - «Раз в сутки» — всегда ставит фото сегодняшнего дня;
- *  - «Раз в час»   — ротация по последним 8 фото
- *                    (точка старта настраивается в приложении).
+ * Интервал задаётся пользователем в часах (1..24) и хранится
+ * в SettingsManager.intervalMinutes.
+ *  - интервал < 24 ч — ротация по 8 последним «фото дня»;
+ *  - интервал = 24 ч — всегда сегодняшнее «фото дня».
  */
 class WallpaperWorker(
     context: Context,
@@ -74,9 +74,11 @@ class WallpaperWorker(
         }
         if (images.isEmpty()) return Result.retry()
 
-        val index = if (settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES) {
-            0 // суточный режим: всегда фото дня
+        val index = if (settings.intervalHours >= SettingsManager.MAX_INTERVAL_HOURS) {
+            // Суточный режим: всегда «фото дня» (индекс 0).
+            0
         } else {
+            // Интервал < 24 ч: ротация по галерее, чтобы обои менялись заметно.
             val i = (settings.startOffset + settings.rotationCount) % images.size
             settings.rotationCount += 1
             i

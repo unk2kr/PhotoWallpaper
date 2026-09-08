@@ -13,18 +13,23 @@
     <string name="autowallpaper">Автоматическая смена обоев</string>
 
     <string name="interval_title">Интервал смены</string>
-    <string name="interval_hourly">Раз в час</string>
-    <string name="interval_daily">Раз в сутки</string>
+    <string name="interval_hint">Любое значение от 1 до 24 часов</string>
+    <string name="interval_value_hours">Каждые %1$d ч.</string>
+    <string name="interval_value_1">Каждый час</string>
+    <string name="interval_value_24">Раз в сутки</string>
 
-    <string name="start_title">Старт ротации (часовой режим)</string>
+    <string name="start_title">Старт ротации</string>
     <string name="start_item_format">Фото %1$d — %2$s</string>
 
     <string name="current_title">Сейчас на экране</string>
     <string name="current_none">Обои ещё не установлены</string>
+
+    <string name="error_title">Последняя ошибка</string>
 
     <string name="change_now">Сменить сейчас</string>
 
     <string name="toast_applying">Скачиваю и устанавливаю…</string>
     <string name="toast_applied_ok">Обои обновлены</string>
     <string name="toast_applied_fail">Не удалось установить обои</string>
+    <string name="toast_interval_saved">Интервал: %1$s</string>
 </resources>
