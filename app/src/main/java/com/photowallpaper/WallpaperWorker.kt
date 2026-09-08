@@ -83,6 +83,7 @@ class WallpaperWorker(
                 "${image.dateLabel()} • ${image.copyright}"
             Result.success()
         } else {
+            ErrorLogger.log(applicationContext, "Worker failed: ${settings.lastError ?: "unknown"}")
             Result.retry()
         }
     }

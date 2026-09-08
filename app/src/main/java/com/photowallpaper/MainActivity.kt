@@ -1,5 +1,8 @@
 package com.photowallpaper
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
@@ -8,7 +11,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -30,15 +35,42 @@ class MainActivity : AppCompatActivity() {
     /** Защита от срабатывания слушателей во время восстановления состояния. */
     private var restoring = false
 
+    /** Запрос разрешения на запись в хранилище (Android 9 и ниже). */
+    private val storagePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            Toast.makeText(
+                this,
+                "Без разрешения логи ошибок не будут сохраняться в Downloads",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         settings = SettingsManager(this)
 
+        ensurePermissions()
         setupListeners()
         loadState()
         loadGallery()
+    }
+
+    /** Проверяет и запрашивает нужные разрешения. */
+    private fun ensurePermissions() {
+        // На Android 10+ разрешение не нужно — используется MediaStore.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
     }
 
     override fun onResume() {
@@ -158,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { applyImage(img) }
             }
             Glide.with(this)
-                .load(img.imageUrl("1366x768"))
+                .load(img.previewUrl())
                 .placeholder(android.R.color.darker_gray)
                 .into(iv)
             binding.previewContainer.addView(iv)
@@ -197,9 +229,30 @@ class MainActivity : AppCompatActivity() {
     /** Кнопка «Сменить сейчас» — берёт следующее фото по логике воркера. */
     private fun changeNow() {
         if (gallery.isEmpty()) {
-            Toast.makeText(this, R.string.gallery_status_error, Toast.LENGTH_SHORT).show()
+            // Возможно, галерея не загрузилась при старте — пробуем ещё раз.
+            lifecycleScope.launch {
+                val (fresh, error) = fetchWallpaperList(settings)
+                if (fresh.isNotEmpty()) {
+                    gallery = fresh
+                    settings.cachedGalleryJson = GalleryCodec.encode(fresh)
+                    renderGallery(gallery)
+                    applyImage(pickNextImage())
+                } else {
+                    renderError(error ?: getString(R.string.gallery_status_error))
+                    Toast.makeText(
+                        this@MainActivity,
+                        R.string.gallery_status_error,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
             return
         }
+        applyImage(pickNextImage())
+    }
+
+    /** Выбирает следующее фото из галереи по текущим настройкам. */
+    private fun pickNextImage(): BingImage {
         val index = if (settings.intervalHours >= SettingsManager.MAX_INTERVAL_HOURS) {
             0 // суточный режим: фото дня
         } else {
@@ -207,7 +260,7 @@ class MainActivity : AppCompatActivity() {
             settings.rotationCount += 1
             i
         }
-        applyImage(gallery[index])
+        return gallery[index]
     }
 
     /** Скачивает фото (с запасными разрешениями) и ставит его обоями. */

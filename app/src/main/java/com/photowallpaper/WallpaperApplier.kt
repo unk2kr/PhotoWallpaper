@@ -24,11 +24,12 @@ object WallpaperApplier {
         val cacheDir = File(context.cacheDir, "wallpaper_cache").apply { mkdirs() }
         val tempFile = File(cacheDir, "current_wallpaper.jpg")
 
-        // 1) Скачиваем Bing: пробуем кандидатов по очереди (UHD -> 1920x1080 -> raw url).
+        // 1) Скачиваем Bing: пробуем кандидатов по очереди.
         var lastCode = -1
         var lastException: String? = null
         var downloaded = false
-        for (url in image.downloadCandidates()) {
+        val candidates = image.downloadCandidates(context)
+        for (url in candidates) {
             try {
                 val code = BingApi.downloadHttp(url, tempFile)
                 if (code == 200 && tempFile.length() > 0) {
@@ -67,6 +68,7 @@ object WallpaperApplier {
                 "Бинг недоступен (${if (lastException != null) lastException else "HTTP $lastCode"})"
             }
             settings.lastError = "Не удалось скачать фото ($reason)"
+            ErrorLogger.log(context, settings.lastError ?: "download failed")
             tempFile.delete()
             return false
         }
@@ -76,6 +78,7 @@ object WallpaperApplier {
         tempFile.delete()
         if (bitmap == null) {
             settings.lastError = "Не удалось декодировать изображение"
+            ErrorLogger.log(context, settings.lastError ?: "decode failed")
             return false
         }
 
@@ -86,6 +89,7 @@ object WallpaperApplier {
             true
         } catch (e: Exception) {
             settings.lastError = "Ошибка установки обоев: ${e.message}"
+            ErrorLogger.log(context, settings.lastError ?: "set wallpaper failed", e)
             Log.e(TAG, "Ошибка установки обоев", e)
             false
         } finally {

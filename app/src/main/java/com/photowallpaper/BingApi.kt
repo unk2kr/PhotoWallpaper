@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import android.content.Context
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -101,15 +102,29 @@ data class BingImage(
         "https://www.bing.com${urlBase}_${size}.jpg"
 
     /**
-     * Кандидаты для скачивания обоев — от лучшего к запасному.
-     * Приложение пробует их по очереди, пока один не вернёт картинку.
-     * Это спасает, если конкретное разрешение недоступно в регионе.
+     * URL превью для галереи — лёгкий размер, чтобы не тратить трафик.
      */
-    fun downloadCandidates(): List<String> {
-        val list = mutableListOf(
-            imageUrl("UHD"),        // 3840x2160
-            imageUrl("1920x1080")   // 1920x1080 — есть почти всегда
-        )
+    fun previewUrl(): String = imageUrl("1366x768")
+
+    /**
+     * Кандидаты для скачивания обоев — от лучшего к запасному.
+     * Для телефонов FullHD+ (Pixel 6 и др.) используем 1920x1080 вместо UHD,
+     * чтобы уменьшить размер файла и трафик. UHD остаётся запасным вариантом.
+     */
+    fun downloadCandidates(context: Context): List<String> {
+        val size = DisplayUtils.wallpaperSize(context)
+        val isFullHdOrLess = maxOf(size.width, size.height) <= 2400
+        val list = if (isFullHdOrLess) {
+            mutableListOf(
+                imageUrl("1920x1080"), // ~300 KB вместо ~4 MB UHD
+                imageUrl("UHD")       // запасной
+            )
+        } else {
+            mutableListOf(
+                imageUrl("UHD"),
+                imageUrl("1920x1080")
+            )
+        }
         if (url.isNotBlank()) {
             list.add("https://www.bing.com$url")
         }
