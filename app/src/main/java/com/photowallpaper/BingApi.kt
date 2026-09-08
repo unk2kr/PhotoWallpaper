@@ -269,5 +269,5 @@ suspend fun fetchWallpaperList(settings: SettingsManager): ImageFetchResult {
 
     settings.lastError = lastError
     settings.cachedGalleryJson = null
-    return emptyList() to lastError
+    return emptyList<BingImage>() to lastError
 }
