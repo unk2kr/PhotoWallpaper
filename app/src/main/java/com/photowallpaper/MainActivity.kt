@@ -1,8 +1,6 @@
 package com.photowallpaper
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
@@ -11,9 +9,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -35,26 +31,12 @@ class MainActivity : AppCompatActivity() {
     /** Защита от срабатывания слушателей во время восстановления состояния. */
     private var restoring = false
 
-    /** Запрос разрешения на запись в хранилище (Android 9 и ниже). */
-    private val storagePermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (!isGranted) {
-            Toast.makeText(
-                this,
-                "Без разрешения логи ошибок не будут сохраняться в Downloads",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         settings = SettingsManager(this)
 
-        ensurePermissions()
         checkNetworkOnStart()
         setupListeners()
         loadState()
@@ -90,18 +72,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Проверяет и запрашивает нужные разрешения. */
-    private fun ensurePermissions() {
-        // На Android 10+ разрешение не нужно — используется MediaStore.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        }
-    }
+
 
     override fun onResume() {
         super.onResume()
@@ -110,6 +81,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        binding.buttonCheckInternet.setOnClickListener {
+            runNetworkDiagnostics()
+        }
+
         binding.switchEnable.setOnCheckedChangeListener { _, checked ->
             if (restoring) return@setOnCheckedChangeListener
             settings.isEnabled = checked
@@ -312,6 +287,63 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, R.string.toast_applied_fail, Toast.LENGTH_LONG)
                     .show()
             }
+        }
+    }
+
+    /** Запускает диагностику сети: проверяет HTTP-доступ к bing.com и picsum.photos. */
+    private fun runNetworkDiagnostics() {
+        binding.buttonCheckInternet.isEnabled = false
+        binding.buttonCheckInternet.text = "Проверка..."
+        binding.textDiagnostics.isVisible = true
+        binding.textDiagnostics.text = "Проверка соединения..."
+
+        lifecycleScope.launch {
+            val result = StringBuilder()
+            
+            // 1. Базовая проверка ConnectivityManager
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val network = cm?.activeNetwork
+            val caps = network?.let { cm.getNetworkCapabilities(it) }
+            
+            result.appendLine("📡 Сеть:")
+            result.appendLine("• Активная сеть: ${if (network != null) "✓" else "✗"}")
+            result.appendLine("• INTERNET: ${if (caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true) "✓" else "✗"}")
+            result.appendLine("• VALIDATED: ${if (caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true) "✓" else "✗"}")
+            result.appendLine("• Тип: ${NetworkUtils.getConnectionType(this@MainActivity)}")
+            result.appendLine()
+
+            // 2. HTTP-запрос к bing.com
+            result.appendLine("🌐 Bing.com:")
+            try {
+                val code = BingApi.checkHttp("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1")
+                if (code == 200) {
+                    result.appendLine("• HTTP $code ✓")
+                } else {
+                    result.appendLine("• HTTP $code ✗")
+                }
+            } catch (e: Exception) {
+                result.appendLine("• Ошибка: ${e.javaClass.simpleName}")
+                result.appendLine("• ${e.message}")
+            }
+            result.appendLine()
+
+            // 3. HTTP-запрос к picsum.photos
+            result.appendLine("🌐 Picsum.photos:")
+            try {
+                val code = LoremPicsumApi.checkHttp("https://picsum.photos/v2/list?page=1&limit=1")
+                if (code == 200) {
+                    result.appendLine("• HTTP $code ✓")
+                } else {
+                    result.appendLine("• HTTP $code ✗")
+                }
+            } catch (e: Exception) {
+                result.appendLine("• Ошибка: ${e.javaClass.simpleName}")
+                result.appendLine("• ${e.message}")
+            }
+
+            binding.textDiagnostics.text = result.toString()
+            binding.buttonCheckInternet.isEnabled = true
+            binding.buttonCheckInternet.text = "Проверить интернет"
         }
     }
 }

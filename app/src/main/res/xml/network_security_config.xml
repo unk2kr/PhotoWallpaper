@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Базовая конфигурация: разрешаем HTTPS и HTTP для всех доменов.
+         Это необходимо, потому что Bing может редиректить на HTTP,
+         а Android 9+ по умолчанию блокирует HTTP-трафик. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

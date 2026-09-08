@@ -13,6 +13,10 @@ object NetworkUtils {
     /**
      * Проверяет, есть ли активное интернет-соединение.
      * Использует ConnectivityManager и NetworkCapabilities (Android 6+).
+     * 
+     * ВАЖНО: НЕ используем NET_CAPABILITY_VALIDATED — на многих устройствах
+     * (особенно в РФ/Китае) эта проверка возвращает false, потому что система
+     * не может пинговать connectivitycheck.gstatic.com, но интернет при этом работает.
      */
     fun isNetworkAvailable(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
@@ -21,8 +25,8 @@ object NetworkUtils {
         val network = cm.activeNetwork ?: return false
         val capabilities = cm.getNetworkCapabilities(network) ?: return false
 
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        // Проверяем только INTERNET без VALIDATED — это более мягкая проверка
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     /**

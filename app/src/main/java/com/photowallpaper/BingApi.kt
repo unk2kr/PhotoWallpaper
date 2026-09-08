@@ -75,6 +75,19 @@ object LoremPicsumApi {
                 code
             }
         }
+
+    /**
+     * Проверочный HTTP-запрос (HEAD) для диагностики.
+     * Возвращает HTTP-код или бросает IOException.
+     */
+    suspend fun checkHttp(url: String): Int = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .head()
+            .build()
+        client.newCall(request).execute().use { resp -> resp.code }
+    }
 }
 
 /**
@@ -213,6 +226,19 @@ object BingApi {
                 code
             }
         }
+
+    /**
+     * Проверочный HTTP-запрос (HEAD) для диагностики.
+     * Возвращает HTTP-код или бросает IOException.
+     */
+    suspend fun checkHttp(url: String): Int = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .head()
+            .build()
+        client.newCall(request).execute().use { resp -> resp.code }
+    }
 }
 
 /**
