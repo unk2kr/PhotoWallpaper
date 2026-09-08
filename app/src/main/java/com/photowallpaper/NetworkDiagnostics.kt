@@ -27,9 +27,9 @@ object NetworkDiagnostics {
         .build()
 
     private const val UA_CHROME =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
-    private const val UA_OKHTTP = "okhttp/4.12.0"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+    private const val UA_OKHTTP = "Mozilla/5.0 (compatible; PhotoWallpaper/1.6)"
 
     /** Формирует полный отчёт диагностики. */
     suspend fun fullReport(context: Context): String = withContext(Dispatchers.IO) {
@@ -67,6 +67,7 @@ object NetworkDiagnostics {
         sb.appendLine()
         sb.appendLine("🔧 URLConnection (системный):")
         sb.append(checkUrlConnection("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1"))
+        sb.toString()
         }
 
     private fun appendNetworkInfo(context: Context, sb: StringBuilder) {

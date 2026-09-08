@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit
 object LoremPicsumApi {
 
     private const val LIST_URL = "https://picsum.photos/v2/list"
-    /** Браузерный User-Agent — серверы не блокируют запросы от Chrome. */
+    /** Десктопный Chrome User-Agent — Bing не блокирует запросы от десктопных браузеров. */
     private const val UA =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -35,11 +35,17 @@ object LoremPicsumApi {
         .followSslRedirects(true)
         .build()
 
+    /** Создаёт Request.Builder с десктопными браузерными заголовками. */
+    private fun browserRequest(url: String) = Request.Builder()
+        .url(url)
+        .header("User-Agent", UA)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Cache-Control", "no-cache")
+
     /** Загружает список фото. Бросает IOException при ошибке сети. */
     suspend fun fetchPhotos(): List<BingImage> = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("$LIST_URL?page=1&limit=8")
-            .header("User-Agent", UA)
+        val request = browserRequest("$LIST_URL?page=1&limit=8")
             .build()
         client.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("Picsum HTTP ${resp.code}")
@@ -65,9 +71,7 @@ object LoremPicsumApi {
     /** Скачивает изображение по URL в File. Возвращает HTTP-код. */
     suspend fun downloadHttp(url: String, dest: File): Int =
         withContext(Dispatchers.IO) {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", UA)
+            val request = browserRequest(url)
                 .build()
             client.newCall(request).execute().use { resp ->
                 val code = resp.code
@@ -84,11 +88,7 @@ object LoremPicsumApi {
      * Возвращает HTTP-код или бросает IOException.
      */
     suspend fun checkHttp(url: String): Int = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", UA)
-            .head()
-            .build()
+        val request = browserRequest(url).head().build()
         client.newCall(request).execute().use { resp -> resp.code }
     }
 }
@@ -168,8 +168,8 @@ object BingApi {
     private const val ARCHIVE_BASE =
         "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8"
     private const val UA =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 
     /** Рынок по локали устройства (например, "ru-RU") — региональный фото-день. */
     private fun market(): String {
@@ -188,11 +188,17 @@ object BingApi {
         .followSslRedirects(true)
         .build()
 
+    /** Создаёт Request.Builder с десктопными браузерными заголовками. */
+    private fun browserRequest(url: String) = Request.Builder()
+        .url(url)
+        .header("User-Agent", UA)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Cache-Control", "no-cache")
+
     /** Последние 8 фото Bing. Индекс 0 = сегодня. Бросает IOException при ошибке. */
     suspend fun fetchWallpapers(): List<BingImage> = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(archiveUrl())
-            .header("User-Agent", UA)
+        val request = browserRequest(archiveUrl())
             .build()
         client.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
@@ -218,10 +224,7 @@ object BingApi {
      */
     suspend fun downloadHttp(url: String, dest: File): Int =
         withContext(Dispatchers.IO) {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", UA)
-                .build()
+            val request = browserRequest(url).build()
             client.newCall(request).execute().use { resp ->
                 val code = resp.code
                 if (!resp.isSuccessful) return@withContext code
@@ -237,11 +240,7 @@ object BingApi {
      * Возвращает HTTP-код или бросает IOException.
      */
     suspend fun checkHttp(url: String): Int = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", UA)
-            .head()
-            .build()
+        val request = browserRequest(url).head().build()
         client.newCall(request).execute().use { resp -> resp.code }
     }
 }
