@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Заголовок -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Фото из Google Photos на рабочем столе"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center"
+            android:layout_marginBottom="32dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSignIn"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🔐  Войти через Google"
+            android:textSize="16sp"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSignOut"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Выйти"
+            android:textSize="14sp"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardAlbum"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📸 Выберите альбом"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <Spinner
+                    android:id="@+id/spinnerAlbum"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@android:drawable/btn_dropdown" />
+
+                <TextView
+                    android:id="@+id/tvAlbumStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Загрузка альбомов..."
+                    android:textSize="13sp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⏰ Частота смены обоев"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioGroup
+                    android:id="@+id/radioGroupInterval"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone">
+
+                    <RadioButton
+                        android:id="@+id/radioHour"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="Каждый час"
+                        android:textSize="16sp"
+                        android:checked="true" />
+
+                    <RadioButton
+                        android:id="@+id/radioDay"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="Раз в сутки"
+                        android:textSize="16sp" />
+                </RadioGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchEnabled"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Включить автоматическую смену"
+            android:textSize="16sp"
+            android:padding="12dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnApply"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="✅  Применить настройки"
+            android:textSize="16sp"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnChangeNow"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="🔄  Сменить обои сейчас"
+            android:textSize="16sp"
+            style="@style/Widget.Material3.Button.TonalButton"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center"
+            android:padding="12dp" />
+
+    </LinearLayout>
+</ScrollView>
