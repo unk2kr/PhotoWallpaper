@@ -2,8 +2,10 @@ package com.photowallpaper
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -88,9 +90,8 @@ class GooglePhotosApi {
                         put("pageSize", 100)
                         if (pageToken != null) put("pageToken", pageToken)
                     }
-                    val reqBody = okhttp3.RequestBody.create(
-                        okhttp3.MediaType.parse("application/json"), jsonBody.toString()
-                    )
+                    val reqBody = jsonBody.toString()
+                        .toRequestBody("application/json".toMediaType())
                     val request = Request.Builder()
                         .url("$BASE_URL/mediaItems:search")
                         .addHeader("Authorization", "Bearer $accessToken")
