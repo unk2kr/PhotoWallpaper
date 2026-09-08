@@ -55,9 +55,39 @@ class MainActivity : AppCompatActivity() {
         settings = SettingsManager(this)
 
         ensurePermissions()
+        checkNetworkOnStart()
         setupListeners()
         loadState()
         loadGallery()
+    }
+
+    /** Проверяет доступность сети при запуске и показывает диагностику. */
+    private fun checkNetworkOnStart() {
+        val hasNetwork = NetworkUtils.isNetworkAvailable(this)
+        val connectionType = NetworkUtils.getConnectionType(this)
+        
+        if (!hasNetwork) {
+            val msg = "⚠️ Нет доступа к интернету\n\n" +
+                    "Тип соединения: $connectionType\n\n" +
+                    "Проверьте:\n" +
+                    "• Включён ли мобильный интернет или Wi-Fi\n" +
+                    "• Не заблокирован ли доступ к bing.com и picsum.photos\n" +
+                    "• Настройки прокси/VPN"
+            binding.textGalleryStatus.text = msg
+            binding.textGalleryStatus.isVisible = true
+            binding.textGalleryStatus.setTextColor(getColor(android.R.color.holo_red_dark))
+        } else {
+            // Сеть есть, но покажем тип соединения для диагностики
+            binding.textGalleryStatus.text = "✓ Сеть: $connectionType"
+            binding.textGalleryStatus.isVisible = true
+            binding.textGalleryStatus.setTextColor(getColor(android.R.color.holo_green_dark))
+            // Скрываем через 2 секунды
+            binding.root.postDelayed({
+                if (gallery.isNotEmpty()) {
+                    binding.textGalleryStatus.isVisible = false
+                }
+            }, 2000)
+        }
     }
 
     /** Проверяет и запрашивает нужные разрешения. */
