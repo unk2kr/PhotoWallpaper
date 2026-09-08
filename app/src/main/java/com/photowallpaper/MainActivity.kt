@@ -1,217 +1,192 @@
 package com.photowallpaper
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.*
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.card.MaterialCardView
+import com.bumptech.glide.Glide
+import com.photowallpaper.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
 
+/**
+ * Главный экран: галерея «фото дня» Bing + настройки автосмены обоев.
+ * Авторизация не нужна — используется публичный эндпоинт Bing.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var authManager: AuthManager
+    private lateinit var binding: ActivityMainBinding
     private lateinit var settings: SettingsManager
-    private val api = GooglePhotosApi()
+    private var gallery: List<BingImage> = emptyList()
 
-    private lateinit var btnSignIn: MaterialButton
-    private lateinit var btnSignOut: MaterialButton
-    private lateinit var cardAlbum: MaterialCardView
-    private lateinit var spinnerAlbum: Spinner
-    private lateinit var tvAlbumStatus: TextView
-    private lateinit var radioGroupInterval: RadioGroup
-    private lateinit var radioHour: RadioButton
-    private lateinit var radioDay: RadioButton
-    private lateinit var switchEnabled: MaterialSwitch
-    private lateinit var btnApply: MaterialButton
-    private lateinit var btnChangeNow: MaterialButton
-    private lateinit var tvStatus: TextView
-    private lateinit var tvOAuthDebug: TextView
-
-    private val oauthLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val data = result.data ?: return@registerForActivityResult
-        lifecycleScope.launch {
-            authManager.handleAuthorizationResponse(data) { success, error ->
-                if (success) {
-                    tvStatus.text = "✅ Авторизация успешна!"
-                    updateUI()
-                    loadAlbums()
-                } else {
-                    tvStatus.text = "❌ Ошибка: $error"
-                }
-            }
-        }
-    }
+    /** Защита от срабатывания слушателей во время восстановления состояния. */
+    private var restoring = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         settings = SettingsManager(this)
-        authManager = AuthManager(this)
-        bindViews()
+
         setupListeners()
-        updateUI()
-        showOAuthDiagnostics()
-    }
-
-    private fun bindViews() {
-        btnSignIn = findViewById(R.id.btnSignIn)
-        btnSignOut = findViewById(R.id.btnSignOut)
-        cardAlbum = findViewById(R.id.cardAlbum)
-        spinnerAlbum = findViewById(R.id.spinnerAlbum)
-        tvAlbumStatus = findViewById(R.id.tvAlbumStatus)
-        radioGroupInterval = findViewById(R.id.radioGroupInterval)
-        radioHour = findViewById(R.id.radioHour)
-        radioDay = findViewById(R.id.radioDay)
-        switchEnabled = findViewById(R.id.switchEnabled)
-        btnApply = findViewById(R.id.btnApply)
-        btnChangeNow = findViewById(R.id.btnChangeNow)
-        tvStatus = findViewById(R.id.tvStatus)
-        tvOAuthDebug = findViewById(R.id.tvOAuthDebug)
-    }
-
-    /**
-     * Показывает OAuth-конфигурацию, зашитую в APK. Без этой информации
-     * «400» от Google выглядит как непонятная ошибка. Тап копирует
-     * Redirect URI в буфер обмена — его нужно вставить в Google Cloud Console.
-     */
-    private fun showOAuthDiagnostics() {
-        tvOAuthDebug.text = OAuthConfig.summary(this)
-        OAuthConfig.warning()?.let { tvStatus.text = "⚠️ $it" }
-    }
-
-    private fun copyToClipboard(label: String, text: String) {
-        val manager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        manager.setPrimaryClip(ClipData.newPlainText(label, text))
-        Toast.makeText(this, "Скопировано: $text", Toast.LENGTH_LONG).show()
+        loadState()
+        loadGallery()
     }
 
     private fun setupListeners() {
-        tvOAuthDebug.setOnClickListener {
-            copyToClipboard("Redirect URI", OAuthConfig.redirectUri)
+        binding.switchEnable.setOnCheckedChangeListener { _, checked ->
+            if (restoring) return@setOnCheckedChangeListener
+            settings.isEnabled = checked
+            if (checked) {
+                WallpaperWorker.schedulePeriodic(this, settings.intervalMinutes)
+            } else {
+                WallpaperWorker.cancelPeriodic(this)
+            }
         }
-        btnSignIn.setOnClickListener {
-            try {
-                val intent = authManager.createAuthorizationIntent()
-                oauthLauncher.launch(intent)
+
+        binding.radioGroupInterval.setOnCheckedChangeListener { _, checkedId ->
+            if (restoring) return@setOnCheckedChangeListener
+            settings.intervalMinutes = when (checkedId) {
+                R.id.radioDaily -> SettingsManager.INTERVAL_DAILY_MINUTES
+                else -> SettingsManager.DEFAULT_INTERVAL_MINUTES
+            }
+            if (settings.isEnabled) {
+                WallpaperWorker.schedulePeriodic(this, settings.intervalMinutes)
+            }
+        }
+
+        binding.buttonChangeNow.setOnClickListener { changeNow() }
+    }
+
+    private fun loadState() {
+        restoring = true
+        binding.switchEnable.isChecked = settings.isEnabled
+        val daily = settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES
+        binding.radioHourly.isChecked = !daily
+        binding.radioDaily.isChecked = daily
+        binding.textLastWallpaper.text =
+            settings.lastWallpaperInfo ?: getString(R.string.current_none)
+        restoring = false
+    }
+
+    private fun loadGallery() {
+        binding.textGalleryStatus.setText(R.string.gallery_status_loading)
+        binding.textGalleryStatus.isVisible = true
+        lifecycleScope.launch {
+            val images = try {
+                val fresh = BingApi.fetchWallpapers()
+                if (fresh.isNotEmpty()) {
+                    settings.cachedGalleryJson = GalleryCodec.encode(fresh)
+                }
+                fresh
             } catch (e: Exception) {
-                tvStatus.text = "❌ Ошибка: ${e.message}"
+                GalleryCodec.decode(settings.cachedGalleryJson)
             }
-        }
-        btnSignOut.setOnClickListener {
-            authManager.signOut()
-            updateUI()
-            tvStatus.text = "👋 Вы вышли из аккаунта"
-        }
-        btnApply.setOnClickListener { applySettings() }
-        btnChangeNow.setOnClickListener { changeWallpaperNow() }
-    }
-
-    private fun updateUI() {
-        val loggedIn = settings.isLoggedIn
-        btnSignIn.visibility = if (loggedIn) View.GONE else View.VISIBLE
-        btnSignOut.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        cardAlbum.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        radioGroupInterval.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        switchEnabled.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        btnApply.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        btnChangeNow.visibility = if (loggedIn) View.VISIBLE else View.GONE
-        if (loggedIn) {
-            when (settings.intervalMinutes) {
-                60L -> radioHour.isChecked = true
-                1440L -> radioDay.isChecked = true
+            gallery = images
+            if (images.isEmpty()) {
+                binding.textGalleryStatus.setText(R.string.gallery_status_error)
+                binding.textGalleryStatus.isVisible = true
+            } else {
+                binding.textGalleryStatus.isVisible = false
             }
-            switchEnabled.isChecked = settings.isEnabled
-            settings.selectedAlbumTitle?.let {
-                tvAlbumStatus.text = "📁 Альбом: $it"
-            }
+            renderGallery(images)
         }
     }
 
-    private fun loadAlbums() {
-        tvStatus.text = "⏳ Загружаем альбомы..."
-        authManager.getAccessToken { token ->
-            if (token == null) {
-                runOnUiThread { tvStatus.text = "❌ Не удалось получить токен" }
-                return@getAccessToken
+    /** Горизонтальная лента превью + список стартового фото. */
+    private fun renderGallery(images: List<BingImage>) {
+        binding.previewContainer.removeAllViews()
+        if (images.isEmpty()) return
+
+        val density = resources.displayMetrics.density
+        val thumbW = (96 * density).toInt()
+        val thumbH = (72 * density).toInt()
+        val endMargin = (8 * density).toInt()
+
+        images.forEach { img ->
+            val iv = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(thumbW, thumbH).apply {
+                    this.marginEnd = endMargin
+                }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = img.copyright
+                setOnClickListener { applyImage(img) }
             }
-            lifecycleScope.launch {
-                val result = api.getAlbums(token)
-                result.fold(
-                    onSuccess = { albums ->
-                        if (albums.isEmpty()) {
-                            runOnUiThread { tvStatus.text = "📭 Альбомы не найдены" }
-                            return@fold
-                        }
-                        val titles = albums.map {
-                            "${it.title} (${it.mediaItemsCount} фото)"
-                        }
-                        val adapter = ArrayAdapter(
-                            this@MainActivity,
-                            android.R.layout.simple_spinner_item, titles
-                        )
-                        adapter.setDropDownViewResource(
-                            android.R.layout.simple_spinner_dropdown_item
-                        )
-                        runOnUiThread {
-                            spinnerAlbum.adapter = adapter
-                            spinnerAlbum.onItemSelectedListener =
-                                object : AdapterView.OnItemSelectedListener {
-                                    override fun onItemSelected(
-                                        p: AdapterView<*>?, v: View?,
-                                        pos: Int, id: Long
-                                    ) {
-                                        val a = albums[pos]
-                                        settings.selectedAlbumId = a.id
-                                        settings.selectedAlbumTitle = a.title
-                                        tvAlbumStatus.text = "📁 ${a.title}"
-                                    }
-                                    override fun onNothingSelected(p: AdapterView<*>?) {}
-                                }
-                            tvStatus.text = "✅ Найдено ${albums.size} альбомов"
-                        }
-                    },
-                    onFailure = { e ->
-                        runOnUiThread {
-                            tvStatus.text = "❌ Ошибка: ${e.message}"
-                        }
-                    }
-                )
+            Glide.with(this)
+                .load(img.imageUrl("1366x768"))
+                .placeholder(android.R.color.darker_gray)
+                .into(iv)
+            binding.previewContainer.addView(iv)
+        }
+
+        fillStartSpinner(images)
+    }
+
+    private fun fillStartSpinner(items: List<BingImage>) {
+        val labels = items.mapIndexed { i, img ->
+            getString(R.string.start_item_format, i + 1, img.dateLabel())
+        }
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            labels
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerStart.adapter = adapter
+        binding.spinnerStart.setSelection(settings.startOffset.coerceIn(0, items.size - 1))
+        // Слушатель вешаем ПОСЛЕ начальной установки, чтобы не сбросить сохранённый offset.
+        binding.spinnerStart.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                settings.startOffset = position
             }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
     }
 
-    private fun applySettings() {
-        val interval = if (radioDay.isChecked) 1440L else 60L
-        settings.intervalMinutes = interval
-        settings.isEnabled = switchEnabled.isChecked
-        if (switchEnabled.isChecked) {
-            WallpaperWorker.schedulePeriodic(this, interval)
-            val desc = if (interval == 60L) "1 час" else "24 часа"
-            tvStatus.text = "✅ Обои включены. Смена каждые $desc"
+    /** Кнопка «Сменить сейчас» — берёт следующее фото по логике воркера. */
+    private fun changeNow() {
+        if (gallery.isEmpty()) {
+            Toast.makeText(this, R.string.gallery_status_error, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val index = if (settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES) {
+            0
         } else {
-            WallpaperWorker.cancelPeriodic(this)
-            tvStatus.text = "⏸ Автоматическая смена выключена"
+            val i = (settings.startOffset + settings.rotationCount) % gallery.size
+            settings.rotationCount += 1
+            i
         }
+        applyImage(gallery[index])
     }
 
-    private fun changeWallpaperNow() {
-        tvStatus.text = "⏳ Меняем обои..."
-        WallpaperWorker.runOnce(this)
-        tvStatus.text = "✅ Задача смены обоев запущена!"
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        authManager.dispose()
+    /** Скачивает UHD и ставит обоями (с прогресс-состоянием кнопки). */
+    private fun applyImage(image: BingImage) {
+        Toast.makeText(this, R.string.toast_applying, Toast.LENGTH_SHORT).show()
+        binding.buttonChangeNow.isEnabled = false
+        lifecycleScope.launch {
+            val ok = WallpaperApplier.applyImage(this@MainActivity, image)
+            binding.buttonChangeNow.isEnabled = true
+            if (ok) {
+                val info = "${image.dateLabel()} • ${image.copyright}"
+                settings.lastWallpaperInfo = info
+                binding.textLastWallpaper.text = info
+                Toast.makeText(this@MainActivity, R.string.toast_applied_ok, Toast.LENGTH_SHORT)
+                    .show()
+            } else {
+                Toast.makeText(this@MainActivity, R.string.toast_applied_fail, Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
     }
 }

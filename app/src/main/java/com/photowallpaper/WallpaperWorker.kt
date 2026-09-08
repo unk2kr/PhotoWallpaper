@@ -1,28 +1,31 @@
 package com.photowallpaper
 
-import android.app.WallpaperManager
 import android.content.Context
-import android.graphics.BitmapFactory
-import android.util.DisplayMetrics
 import android.util.Log
-import android.view.WindowManager
 import androidx.work.*
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * WorkManager Worker — фоновая задача для смены обоев.
- * Скачивает фото из альбома Google Photos и ставит как обои.
+ * Фоновая задача WorkManager: периодическая смена обоев
+ * на «фото дня» Bing.
+ *
+ * Режимы:
+ *  - «Раз в сутки» — всегда ставит фото сегодняшнего дня;
+ *  - «Раз в час»   — ротация по последним 8 фото
+ *                    (точка старта настраивается в приложении).
  */
 class WallpaperWorker(
-    private val context: Context,
+    context: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(context, workerParams) {
 
     companion object {
         const val TAG = "PhotoWallpaperWorker"
-        const val WORK_NAME_PERIODIC = "photo_wallpaper_periodic"
+        private const val WORK_NAME_PERIODIC = "photo_wallpaper_periodic"
+        private const val WORK_NAME_ONCE = "photo_wallpaper_once"
+        private const val KEY_FORCE = "force"
 
+        /** Периодическая смена (интервал в минутах). */
         fun schedulePeriodic(context: Context, intervalMinutes: Long) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -36,13 +39,17 @@ class WallpaperWorker(
             )
         }
 
+        /** Однократная смена по кнопке — выполняется всегда,
+         *  даже если авто-смена выключена. */
         fun runOnce(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED).build()
             val work = OneTimeWorkRequestBuilder<WallpaperWorker>()
-                .setConstraints(constraints).build()
+                .setInputData(workDataOf(KEY_FORCE to true))
+                .setConstraints(constraints)
+                .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "photo_wallpaper_once", ExistingWorkPolicy.REPLACE, work
+                WORK_NAME_ONCE, ExistingWorkPolicy.REPLACE, work
             )
         }
 
@@ -52,48 +59,36 @@ class WallpaperWorker(
     }
 
     override suspend fun doWork(): Result {
-        val settings = SettingsManager(context)
-        if (!settings.isEnabled) return Result.success()
-        val albumId = settings.selectedAlbumId ?: return Result.failure()
+        val settings = SettingsManager(applicationContext)
+        val force = inputData.getBoolean(KEY_FORCE, false)
+        if (!force && !settings.isEnabled) return Result.success()
 
-        val api = GooglePhotosApi()
-        val authManager = AuthManager(context)
-        try {
-            val token = kotlinx.coroutines.suspendCancellableCoroutine<String?> { cont ->
-                authManager.getAccessToken { cont.resumeWith(kotlin.Result.success(it)) }
-            } ?: return Result.retry()
-
-            val mediaResult = api.getMediaItems(token, albumId)
-            val mediaItems = mediaResult.getOrNull()
-            if (mediaItems.isNullOrEmpty()) return Result.failure()
-
-            val nextIndex = (settings.lastPhotoIndex + 1) % mediaItems.size
-            val photo = mediaItems[nextIndex]
-
-            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val metrics = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(metrics)
-
-            val cacheDir = File(context.cacheDir, "wallpaper_cache").apply { mkdirs() }
-            val tempFile = File(cacheDir, "next_wallpaper.jpg")
-            val url = photo.getSizedUrl(metrics.widthPixels, metrics.heightPixels)
-            api.downloadImage(url, tempFile).getOrNull() ?: return Result.retry()
-
-            val bitmap = BitmapFactory.decodeFile(tempFile.absolutePath)
-            if (bitmap != null) {
-                WallpaperManager.getInstance(context).setBitmap(bitmap)
-                bitmap.recycle()
-            } else return Result.retry()
-
-            settings.lastPhotoIndex = nextIndex
-            tempFile.delete()
-            return Result.success()
+        // Галерея: свежая с Bing; при сбое сети — кэш предыдущего ответа.
+        val images = try {
+            val fresh = BingApi.fetchWallpapers()
+            if (fresh.isNotEmpty()) settings.cachedGalleryJson = GalleryCodec.encode(fresh)
+            fresh
         } catch (e: Exception) {
-            Log.e(TAG, "Worker error", e)
-            return Result.retry()
-        } finally {
-            authManager.dispose()
+            Log.w(TAG, "Bing недоступен, пробуем кэш", e)
+            GalleryCodec.decode(settings.cachedGalleryJson)
+        }
+        if (images.isEmpty()) return Result.retry()
+
+        val index = if (settings.intervalMinutes >= SettingsManager.INTERVAL_DAILY_MINUTES) {
+            0 // суточный режим: всегда фото дня
+        } else {
+            val i = (settings.startOffset + settings.rotationCount) % images.size
+            settings.rotationCount += 1
+            i
+        }
+        val image = images[index]
+
+        return if (WallpaperApplier.applyImage(applicationContext, image)) {
+            settings.lastWallpaperInfo =
+                "${image.dateLabel()} • ${image.copyright}"
+            Result.success()
+        } else {
+            Result.retry()
         }
     }
 }

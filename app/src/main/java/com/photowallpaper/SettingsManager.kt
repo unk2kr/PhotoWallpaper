@@ -4,8 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
- * Менеджер настроек приложения.
- * Хранит: выбранный альбом, интервал смены, состояние авторизации, OAuth токены.
+ * Настройки приложения:
+ * интервал смены, точка старта ротации, состояние,
+ * кэш последней галереи Bing (для офлайн-работы).
  */
 class SettingsManager(context: Context) {
 
@@ -13,30 +14,7 @@ class SettingsManager(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     // ──────────────────────────────────────────
-    // OAuth / Auth State
-    // ──────────────────────────────────────────
-
-    var authStateJson: String?
-        get() = prefs.getString(KEY_AUTH_STATE, null)
-        set(value) = prefs.edit().putString(KEY_AUTH_STATE, value).apply()
-
-    val isLoggedIn: Boolean
-        get() = authStateJson != null
-
-    // ──────────────────────────────────────────
-    // Выбранный альбом
-    // ──────────────────────────────────────────
-
-    var selectedAlbumId: String?
-        get() = prefs.getString(KEY_ALBUM_ID, null)
-        set(value) = prefs.edit().putString(KEY_ALBUM_ID, value).apply()
-
-    var selectedAlbumTitle: String?
-        get() = prefs.getString(KEY_ALBUM_TITLE, null)
-        set(value) = prefs.edit().putString(KEY_ALBUM_TITLE, value).apply()
-
-    // ──────────────────────────────────────────
-    // Интервал смены обоев
+    // Интервал смены обоев (минуты): 60 или 1440
     // ──────────────────────────────────────────
 
     var intervalMinutes: Long
@@ -44,7 +22,7 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putLong(KEY_INTERVAL_MINUTES, value).apply()
 
     // ──────────────────────────────────────────
-    // Активность (включены ли обои)
+    // Включена ли автоматическая смена
     // ──────────────────────────────────────────
 
     var isEnabled: Boolean
@@ -52,38 +30,51 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
 
     // ──────────────────────────────────────────
-    // Индекс последнего показанного фото (для ротации)
+    // Часовой режим: с какого из 8 фото начать (0 = сегодня)
     // ──────────────────────────────────────────
 
-    var lastPhotoIndex: Int
-        get() = prefs.getInt(KEY_LAST_PHOTO_INDEX, -1)
-        set(value) = prefs.edit().putInt(KEY_LAST_PHOTO_INDEX, value).apply()
+    var startOffset: Int
+        get() = prefs.getInt(KEY_START_OFFSET, 0)
+        set(value) = prefs.edit().putInt(KEY_START_OFFSET, value).apply()
 
     // ──────────────────────────────────────────
-    // Очистка
+    // Сколько ротаций уже произошло (часовой режим)
     // ──────────────────────────────────────────
+
+    var rotationCount: Int
+        get() = prefs.getInt(KEY_ROTATION_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_ROTATION_COUNT, value).apply()
+
+    // ──────────────────────────────────────────
+    // Текущие обои: "дата • автор" (для показа в UI)
+    // ──────────────────────────────────────────
+
+    var lastWallpaperInfo: String?
+        get() = prefs.getString(KEY_LAST_WALLPAPER, null)
+        set(value) = prefs.edit().putString(KEY_LAST_WALLPAPER, value).apply()
+
+    // ──────────────────────────────────────────
+    // Кэш галереи (последний успешный ответ Bing)
+    // ──────────────────────────────────────────
+
+    var cachedGalleryJson: String?
+        get() = prefs.getString(KEY_CACHED_GALLERY, null)
+        set(value) = prefs.edit().putString(KEY_CACHED_GALLERY, value).apply()
 
     fun clearAll() {
         prefs.edit().clear().apply()
     }
 
-    fun clearAuth() {
-        prefs.edit()
-            .remove(KEY_AUTH_STATE)
-            .remove(KEY_ALBUM_ID)
-            .remove(KEY_ALBUM_TITLE)
-            .apply()
-    }
-
     companion object {
         private const val PREFS_NAME = "photo_wallpaper_prefs"
-        private const val KEY_AUTH_STATE = "auth_state_json"
-        private const val KEY_ALBUM_ID = "selected_album_id"
-        private const val KEY_ALBUM_TITLE = "selected_album_title"
         private const val KEY_INTERVAL_MINUTES = "interval_minutes"
         private const val KEY_ENABLED = "wallpaper_enabled"
-        private const val KEY_LAST_PHOTO_INDEX = "last_photo_index"
+        private const val KEY_START_OFFSET = "start_offset"
+        private const val KEY_ROTATION_COUNT = "rotation_count"
+        private const val KEY_LAST_WALLPAPER = "last_wallpaper_info"
+        private const val KEY_CACHED_GALLERY = "cached_gallery_json"
 
         const val DEFAULT_INTERVAL_MINUTES = 60L // 1 час по умолчанию
+        const val INTERVAL_DAILY_MINUTES = 1440L
     }
 }
