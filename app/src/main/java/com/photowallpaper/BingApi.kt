@@ -8,9 +8,71 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Locale
 import java.util.concurrent.TimeUnit
+
+/**
+ * Lorem Picsum — публичный сервис случайных фотографий БЕЗ ключей.
+ * https://picsum.photos/v2/list?page={page}&limit={n}
+ * Возвращает JSON: [{ id, author, width, height, url }]
+ *
+ * Используется как запасной источник когда Bing недоступен.
+ */
+object LoremPicsumApi {
+
+    private const val LIST_URL = "https://picsum.photos/v2/list"
+    private const val UA = "PhotoWallpaper/1.4 (Android; Fallback Source)"
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    /** Загружает список фото. Бросает IOException при ошибке сети. */
+    suspend fun fetchPhotos(): List<BingImage> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$LIST_URL?page=1&limit=8")
+            .header("User-Agent", UA)
+            .build()
+        client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("Picsum HTTP ${resp.code}")
+            val body = resp.body ?: throw IOException("Пустой ответ Picsum")
+            val arr = JSONArray(body.string())
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                val id = o.getInt("id")
+                val author = o.optString("author", "Picsum")
+                // picsum.photos/id/{id}/width/height.jpg
+                val rawUrl = "https://picsum.photos/id/$id/1920/1080.jpg"
+                BingImage(
+                    startdate = "picsum_$id",
+                    urlBase = "/picsum/$id",
+                    copyright = "$author via Picsum",
+                    copyrightLink = "",
+                    url = rawUrl
+                )
+            }
+        }
+    }
+
+    /** Скачивает изображение по URL в File. Возвращает HTTP-код. */
+    suspend fun downloadHttp(url: String, dest: File): Int =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .build()
+            client.newCall(request).execute().use { resp ->
+                val code = resp.code
+                if (!resp.isSuccessful) return@withContext code
+                val body = resp.body ?: return@withContext code
+                dest.parentFile?.mkdirs()
+                dest.outputStream().use { out -> body.byteStream().copyTo(out) }
+                code
+            }
+        }
+}
 
 /**
  * Одно «фото дня» Bing.
@@ -72,7 +134,7 @@ object BingApi {
 
     private const val ARCHIVE_BASE =
         "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8"
-    private const val UA = "Mozilla/5.0 (Linux; Android 14) PhotoWallpaper/1.3"
+    private const val UA = "Mozilla/5.0 (Linux; Android 14) PhotoWallpaper/1.4"
 
     /** Рынок по локали устройства (например, "ru-RU") — региональный фото-день. */
     private fun market(): String {
@@ -138,7 +200,7 @@ object BingApi {
 
 /**
  * Кэширование галереи в SharedPreferences (JSON-строка),
- * чтобы приложение работало, даже если Bing недоступен.
+ * чтобы приложение работало, даже если сервисы недоступны.
  */
 object GalleryCodec {
 
@@ -175,4 +237,35 @@ object GalleryCodec {
             emptyList()
         }
     }
+}
+
+// ════════════════════════════════════════════════
+// Альтернативные источники фото (fallback цепочка)
+// ════════════════════════════════════════════════
+
+/** Обёртка над любым списком изображений, возвращает BingImage[] и причину неудачи при ошибке. */
+typealias ImageFetchResult = Pair<List<BingImage>, String?>
+
+/**
+ * Пытается загрузить фото из нескольких источников по очереди.
+ *  1. Bing Daily Wallpaper (основной)
+ *  2. Lorem Picsum (запасной — случайные красивые фото)
+ * Возвращает Pair<список, причинаПоследнейОшибки>. Пустой список = все недоступны.
+ */
+suspend fun fetchWallpaperList(settings: SettingsManager): ImageFetchResult {
+    // Попытка 1: Bing
+    runCatching { BingApi.fetchWallpapers() }.onSuccess { list ->
+        if (list.isNotEmpty()) return list to null
+    }
+    var lastError = "Bing недоступен"
+
+    // Попытка 2: Lorem Picsum — публичный сервис без ключей
+    runCatching { LoremPicsumApi.fetchPhotos() }.onSuccess { list ->
+        if (list.isNotEmpty()) return list to null
+    }
+    lastError += "; Lorem Picsum также недоступен"
+
+    settings.lastError = lastError
+    settings.cachedGalleryJson = null
+    return emptyList() to lastError
 }

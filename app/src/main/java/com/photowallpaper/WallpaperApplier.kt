@@ -24,7 +24,7 @@ object WallpaperApplier {
         val cacheDir = File(context.cacheDir, "wallpaper_cache").apply { mkdirs() }
         val tempFile = File(cacheDir, "current_wallpaper.jpg")
 
-        // 1) Скачиваем: пробуем кандидатов по очереди (UHD -> 1920x1080 -> raw url).
+        // 1) Скачиваем Bing: пробуем кандидатов по очереди (UHD -> 1920x1080 -> raw url).
         var lastCode = -1
         var lastException: String? = null
         var downloaded = false
@@ -33,21 +33,38 @@ object WallpaperApplier {
                 val code = BingApi.downloadHttp(url, tempFile)
                 if (code == 200 && tempFile.length() > 0) {
                     downloaded = true
-                    Log.i(TAG, "Скачано ($code): $url")
+                    Log.i(TAG, "Bing скачан ($code): $url")
                     break
                 }
                 lastCode = code
-                Log.w(TAG, "HTTP $code для $url — пробуем следующий")
+                Log.w(TAG, "Bing HTTP $code для $url — пробуем следующий")
             } catch (e: Exception) {
                 lastException = e.message ?: e.javaClass.simpleName
-                Log.w(TAG, "Сбой загрузки $url: $lastException")
+                Log.w(TAG, "Bing сбой загрузки $url: $lastException")
             }
         }
+
+        // Если Bing не помог и это фото от Picsum — пробуем их API.
+        if (!downloaded && image.urlBase.startsWith("/picsum/")) {
+            Log.i(TAG, "Пикасум-фото, пробуем запасной источник")
+            try {
+                val code = LoremPicsumApi.downloadHttp(image.url, tempFile)
+                if (code == 200 && tempFile.length() > 0) {
+                    downloaded = true
+                    Log.i(TAG, "Picsum скачан ($code): ${image.url}")
+                } else {
+                    Log.w(TAG, "Picsum HTTP $code")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Picsum сбой: ${e.message}")
+            }
+        }
+
         if (!downloaded) {
-            val reason = if (lastException != null) {
-                "сеть: $lastException"
+            val reason = if (image.urlBase.startsWith("/picsum/")) {
+                "Не удалось скачать фото: все источники недоступны"
             } else {
-                "Bing вернул HTTP $lastCode"
+                "Бинг недоступен (${if (lastException != null) lastException else "HTTP $lastCode"})"
             }
             settings.lastError = "Не удалось скачать фото ($reason)"
             tempFile.delete()

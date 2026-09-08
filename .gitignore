@@ -17,3 +17,4 @@ local.properties
 !/app/debug.keystore
 google-services.json
 downloaded/
+downloaded_new/

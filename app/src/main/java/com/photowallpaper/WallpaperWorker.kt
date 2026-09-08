@@ -63,15 +63,8 @@ class WallpaperWorker(
         val force = inputData.getBoolean(KEY_FORCE, false)
         if (!force && !settings.isEnabled) return Result.success()
 
-        // Галерея: свежая с Bing; при сбое сети — кэш предыдущего ответа.
-        val images = try {
-            val fresh = BingApi.fetchWallpapers()
-            if (fresh.isNotEmpty()) settings.cachedGalleryJson = GalleryCodec.encode(fresh)
-            fresh
-        } catch (e: Exception) {
-            Log.w(TAG, "Bing недоступен, пробуем кэш", e)
-            GalleryCodec.decode(settings.cachedGalleryJson)
-        }
+        // Галерея: по очереди Bing → Lorem Picsum (fallback).
+        val (images, _) = fetchWallpaperList(settings)
         if (images.isEmpty()) return Result.retry()
 
         val index = if (settings.intervalHours >= SettingsManager.MAX_INTERVAL_HOURS) {

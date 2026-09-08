@@ -120,21 +120,17 @@ class MainActivity : AppCompatActivity() {
         binding.textGalleryStatus.setText(R.string.gallery_status_loading)
         binding.textGalleryStatus.isVisible = true
         lifecycleScope.launch {
-            val images = try {
-                val fresh = BingApi.fetchWallpapers()
-                if (fresh.isNotEmpty()) {
-                    settings.cachedGalleryJson = GalleryCodec.encode(fresh)
-                }
-                fresh
-            } catch (e: Exception) {
-                GalleryCodec.decode(settings.cachedGalleryJson)
-            }
+            val (images, error) = fetchWallpaperList(settings)
             gallery = images
+            renderError(error)
             if (images.isEmpty()) {
-                binding.textGalleryStatus.setText(R.string.gallery_status_error)
+                binding.textGalleryStatus.text =
+                    getString(R.string.gallery_status_error) + "\n" + (error ?: "")
                 binding.textGalleryStatus.isVisible = true
                 binding.textTapHint.isVisible = false
             } else {
+                // Сохраняем кэш для офлайн-работы
+                settings.cachedGalleryJson = GalleryCodec.encode(images)
                 binding.textGalleryStatus.isVisible = false
                 binding.textTapHint.isVisible = true
             }
