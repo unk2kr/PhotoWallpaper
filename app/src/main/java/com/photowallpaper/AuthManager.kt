@@ -33,15 +33,22 @@ class AuthManager(private val context: Context) {
         AuthorizationService(context, appAuthConfig)
     }
 
-    private val redirectUri: Uri = Uri.parse("com.photowallpaper://oauth2callback")
+    /**
+     * Redirect URI вычисляется на этапе сборки из Client ID (см. build.gradle.kts):
+     *  • Android-клиент  → com.googleusercontent.apps.<ID>:/oauth2redirect
+     *  • Web-клиент      → com.photowallpaper:/oauth2callback
+     */
+    private val redirectUri: Uri = Uri.parse(OAuthConfig.redirectUri)
 
     /**
      * Создаёт Intent для запуска OAuth2 авторизации.
      */
     fun createAuthorizationIntent(): Intent {
+        OAuthConfig.fatalProblem()?.let { throw IllegalStateException(it) }
+
         val authRequest = AuthorizationRequest.Builder(
             authServiceConfig,
-            BuildConfig.GOOGLE_CLIENT_ID,
+            OAuthConfig.clientId,
             ResponseTypeValues.CODE,
             redirectUri
         )
@@ -72,13 +79,17 @@ class AuthManager(private val context: Context) {
                     settings.authStateJson = authState.jsonSerializeString()
                     onResult(true, null)
                 } else {
-                    onResult(false, tokenException?.message ?: "Token exchange failed")
+                    onResult(false, "Обмен кода на токен не удался: ${describe(tokenException)}")
                 }
             }
         } else {
-            onResult(false, exception?.message ?: "Authorization failed")
+            onResult(false, "Авторизация не завершена: ${describe(exception)}")
         }
     }
+
+    /** Развёрнутое описание ошибки AppAuth (тип / код / описание). */
+    private fun describe(e: AuthorizationException?): String =
+        e?.let { (it.message ?: "").ifBlank { it.toString() } } ?: "неизвестная ошибка"
 
     /**
      * Получает актуальный access token (с автоматическим обновлением).

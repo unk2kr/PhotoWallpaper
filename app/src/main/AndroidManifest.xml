@@ -36,9 +36,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="com.photowallpaper"
-                    android:host="oauth2callback" />
+                <!-- Scheme подставляется из build.gradle.kts: для Android-клиента
+                     это com.googleusercontent.apps.<ID>, для Web — com.photowallpaper -->
+                <data android:scheme="${appAuthRedirectScheme}" />
             </intent-filter>
         </activity>
 

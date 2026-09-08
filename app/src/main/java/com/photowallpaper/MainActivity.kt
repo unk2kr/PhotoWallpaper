@@ -1,5 +1,8 @@
 package com.photowallpaper
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -30,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnApply: MaterialButton
     private lateinit var btnChangeNow: MaterialButton
     private lateinit var tvStatus: TextView
+    private lateinit var tvOAuthDebug: TextView
 
     private val oauthLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -56,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         setupListeners()
         updateUI()
+        showOAuthDiagnostics()
     }
 
     private fun bindViews() {
@@ -71,9 +76,29 @@ class MainActivity : AppCompatActivity() {
         btnApply = findViewById(R.id.btnApply)
         btnChangeNow = findViewById(R.id.btnChangeNow)
         tvStatus = findViewById(R.id.tvStatus)
+        tvOAuthDebug = findViewById(R.id.tvOAuthDebug)
+    }
+
+    /**
+     * Показывает OAuth-конфигурацию, зашитую в APK. Без этой информации
+     * «400» от Google выглядит как непонятная ошибка. Тап копирует
+     * Redirect URI в буфер обмена — его нужно вставить в Google Cloud Console.
+     */
+    private fun showOAuthDiagnostics() {
+        tvOAuthDebug.text = OAuthConfig.summary(this)
+        OAuthConfig.warning()?.let { tvStatus.text = "⚠️ $it" }
+    }
+
+    private fun copyToClipboard(label: String, text: String) {
+        val manager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        manager.setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(this, "Скопировано: $text", Toast.LENGTH_LONG).show()
     }
 
     private fun setupListeners() {
+        tvOAuthDebug.setOnClickListener {
+            copyToClipboard("Redirect URI", OAuthConfig.redirectUri)
+        }
         btnSignIn.setOnClickListener {
             try {
                 val intent = authManager.createAuthorizationIntent()

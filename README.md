@@ -36,33 +36,75 @@ Android-приложение, которое автоматически меня
 2. Создайте новый проект
 3. Включите **Google Photos Library API**:
    - `APIs & Services` → `Library` → найдите `Photos Library API` → `Enable`
-4. Создайте **OAuth 2.0 Client ID**:
+4. Настройте **OAuth consent screen** (`APIs & Services` → `OAuth consent screen`):
+   - Тип: **External**, заполните название и email
+   - Добавьте scope `.../auth/photoslibrary.readonly`
+   - Пока приложение в статусе **Testing** — добавьте свой Google-аккаунт
+     в список **Test users**, иначе Google вернёт `access_denied`
+5. Создайте **OAuth 2.0 Client ID**:
    - `APIs & Services` → `Credentials` → `Create Credentials` → `OAuth client ID`
-   - Тип: **Web application** (для AppAuth)
-   - Authorized redirect URIs: `com.photowallpaper://oauth2callback`
-5. Скопируйте **Client ID**
+   - Тип: **⚠️ Android** (не «Web application»!)
+   - **Package name**: `com.photowallpaper`
+   - **SHA-1 certificate fingerprint**: отпечаток ключа, которым подписан APK
+     (см. ниже — его показывает workflow «Generate Debug Keystore» и само
+     приложение в блоке «🔧 Диагностика OAuth»)
+6. Скопируйте **Client ID** вида `123456789-abc...apps.googleusercontent.com`
 
-### 2. Вставьте Client ID в проект
+> **Почему тип Android, а не Web?**
+> Для клиента типа «Web application» Google требует client_secret при обмене
+> кода на токен и регистрацию redirect URI вручную — из мобильного приложения
+> это даёт ошибки `400 redirect_uri_mismatch` / `unauthorized_client`.
+> Android-клиент — публичный: секрет не нужен, а redirect URI формируется
+> автоматически как `com.googleusercontent.apps.<ID>:/oauth2redirect`.
 
-Откройте `app/build.gradle.kts` и замените:
+### 2. Зафиксируйте debug-ключ подписи
 
-```kotlin
-buildConfigField("String", "GOOGLE_CLIENT_ID", "\"YOUR_WEB_CLIENT_ID_HERE\"")
+SHA-1 подписи должен совпадать с зарегистрированным в консоли. Чтобы SHA-1
+не менялся при каждой CI-сборке, используется закреплённый keystore:
+
+1. GitHub → **Actions** → **«Generate Debug Keystore»** → **Run workflow**
+2. В логе — **SHA-1** (впишите его в пункт 1.5 выше)
+3. Скачайте артефакт `pinned-debug-keystore`, положите файл в `app/debug.keystore`
+   и закоммитьте (он исключён из `.gitignore` нарочно — отладочные ключи не секретны)
+
+### 3. Передайте Client ID сборке
+
+Локально — в `local.properties` (не коммитится):
+
+```properties
+GOOGLE_CLIENT_ID=123456789-abc....apps.googleusercontent.com
 ```
 
-На ваш Client ID:
+На CI — в секретах репозитория:
+**Settings → Secrets and variables → Actions → New repository secret** →
+`GOOGLE_CLIENT_ID` = ваш Client ID. Workflow сам впишет его в сборку.
 
-```kotlin
-buildConfigField("String", "GOOGLE_CLIENT_ID", "\"123456789-abc.apps.googleusercontent.com\"")
+Проверить, что вшьётся в APK:
+
+```bash
+./gradlew :app:printOAuthConfig
 ```
 
-### 3. Соберите и запустите
+### 4. Соберите и запустите
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-Или откройте проект в **Android Studio** и нажмите Run.
+Или просто запушьте — **GitHub Actions** соберёт APK в артефакты.
+
+## 🩺 Ошибка 400 при авторизации — диагностика
+
+Откройте в приложении блок **«🔧 Диагностика OAuth»** — там видно Client ID,
+тип клиента, Redirect URI и SHA-1 подписи именно вашей сборки.
+
+| Текст ошибки Google | Причина | Лечение |
+|---------------------|---------|---------|
+| `400: invalid_request` | Client ID пустой/заглушка | Шаги 3 выше |
+| `400: redirect_uri_mismatch` | redirect URI не совпадает | Для Android-клиента URI фиксирован — проверьте, что клиент именно типа **Android** |
+| `400: unauthorized_client` | Тип клиента «Web application» | Пересоздайте клиент типа **Android** |
+| Страница «unregistered/invalid» | SHA-1 подписи ≠ зарегистрированному | Выполните шаг 2, впишите SHA-1 из диагностики приложения |
+| `access_denied` / приложение «заблокировано» | Consent screen в Testing, аккаунт не в Test users | Добавьте себя в **Test users** |
 
 ## 📱 Использование
 

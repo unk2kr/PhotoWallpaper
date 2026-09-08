@@ -33,6 +33,20 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Inject Google OAuth Client ID
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: |
+          if [ -n "$GOOGLE_CLIENT_ID" ]; then
+            echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> local.properties
+            echo "Client ID подхвачен из GitHub Secrets"
+          else
+            echo "::warning::Secret GOOGLE_CLIENT_ID не задан: APK соберётся без Client ID, авторизация Google вернёт 400"
+          fi
+
+      - name: Show OAuth config (для проверки redirect URI)
+        run: ./gradlew :app:printOAuthConfig --quiet || true
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
