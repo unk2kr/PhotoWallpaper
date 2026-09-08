@@ -291,60 +291,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Запускает диагностику сети: проверяет HTTP-доступ к bing.com и picsum.photos. */
+    /** Запускает диагностику сети и показывает результат в AlertDialog с кнопкой копирования. */
     private fun runNetworkDiagnostics() {
         binding.buttonCheckInternet.isEnabled = false
         binding.buttonCheckInternet.text = "Проверка..."
-        binding.textDiagnostics.isVisible = true
-        binding.textDiagnostics.text = "Проверка соединения..."
 
         lifecycleScope.launch {
-            val result = StringBuilder()
-            
-            // 1. Базовая проверка ConnectivityManager
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            val network = cm?.activeNetwork
-            val caps = network?.let { cm.getNetworkCapabilities(it) }
-            
-            result.appendLine("📡 Сеть:")
-            result.appendLine("• Активная сеть: ${if (network != null) "✓" else "✗"}")
-            result.appendLine("• INTERNET: ${if (caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true) "✓" else "✗"}")
-            result.appendLine("• VALIDATED: ${if (caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true) "✓" else "✗"}")
-            result.appendLine("• Тип: ${NetworkUtils.getConnectionType(this@MainActivity)}")
-            result.appendLine()
+            val report = NetworkDiagnostics.fullReport(this@MainActivity)
 
-            // 2. HTTP-запрос к bing.com
-            result.appendLine("🌐 Bing.com:")
-            try {
-                val code = BingApi.checkHttp("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1")
-                if (code == 200) {
-                    result.appendLine("• HTTP $code ✓")
-                } else {
-                    result.appendLine("• HTTP $code ✗")
-                }
-            } catch (e: Exception) {
-                result.appendLine("• Ошибка: ${e.javaClass.simpleName}")
-                result.appendLine("• ${e.message}")
-            }
-            result.appendLine()
-
-            // 3. HTTP-запрос к picsum.photos
-            result.appendLine("🌐 Picsum.photos:")
-            try {
-                val code = LoremPicsumApi.checkHttp("https://picsum.photos/v2/list?page=1&limit=1")
-                if (code == 200) {
-                    result.appendLine("• HTTP $code ✓")
-                } else {
-                    result.appendLine("• HTTP $code ✗")
-                }
-            } catch (e: Exception) {
-                result.appendLine("• Ошибка: ${e.javaClass.simpleName}")
-                result.appendLine("• ${e.message}")
-            }
-
-            binding.textDiagnostics.text = result.toString()
             binding.buttonCheckInternet.isEnabled = true
             binding.buttonCheckInternet.text = "Проверить интернет"
+
+            showDiagnosticDialog(report)
         }
+    }
+
+    /** Показывает диагностический отчёт в AlertDialog с кнопкой "Скопировать". */
+    private fun showDiagnosticDialog(report: String) {
+        val scrollView = android.widget.ScrollView(this).apply {
+            setPadding(32, 16, 32, 16)
+        }
+        val textView = android.widget.TextView(this).apply {
+            text = report
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextIsSelectable(true)
+        }
+        scrollView.addView(textView)
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("📋 Диагностика сети")
+            .setView(scrollView)
+            .setPositiveButton("Закрыть", null)
+            .setNeutralButton("📋 Копировать") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("PhotoWallpaper Diagnostic", report)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@MainActivity, "Лог скопирован в буфер обмена", Toast.LENGTH_SHORT).show()
+            }
+            .setCancelable(true)
+            .show()
     }
 }

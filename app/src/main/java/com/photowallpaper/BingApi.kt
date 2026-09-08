@@ -23,7 +23,10 @@ import java.util.concurrent.TimeUnit
 object LoremPicsumApi {
 
     private const val LIST_URL = "https://picsum.photos/v2/list"
-    private const val UA = "PhotoWallpaper/1.4 (Android; Fallback Source)"
+    /** Браузерный User-Agent — серверы не блокируют запросы от Chrome. */
+    private const val UA =
+        "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -164,7 +167,9 @@ object BingApi {
 
     private const val ARCHIVE_BASE =
         "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8"
-    private const val UA = "Mozilla/5.0 (Linux; Android 14) PhotoWallpaper/1.4"
+    private const val UA =
+        "Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36"
 
     /** Рынок по локали устройства (например, "ru-RU") — региональный фото-день. */
     private fun market(): String {
