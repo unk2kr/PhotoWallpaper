@@ -1,8 +1,9 @@
 package com.photowallpaper
 
 import android.content.Context
-import android.net.ConnectivityManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         settings = SettingsManager(this)
 
+        hideProgress()
         checkNetworkOnStart()
         setupListeners()
         loadState()
@@ -155,13 +157,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadGallery() {
-        binding.textGalleryStatus.setText(R.string.gallery_status_loading)
+        // Снапшот «из коробки»: показываем сохранённую галерею сразу,
+        // чтобы экран не был пустым, пока идёт сеть.
+        val cached = GalleryCodec.decode(settings.cachedGalleryJson)
+        if (cached.isNotEmpty()) {
+            gallery = cached
+            renderGallery(gallery)
+            binding.textGalleryStatus.setText(R.string.gallery_status_refreshing)
+        } else {
+            binding.textGalleryStatus.setText(R.string.gallery_status_loading)
+        }
         binding.textGalleryStatus.isVisible = true
         lifecycleScope.launch {
             val (images, error) = fetchWallpaperList(settings)
-            gallery = images
-            renderError(error)
             if (images.isEmpty()) {
+                renderError(error)
                 binding.textGalleryStatus.text =
                     getString(R.string.gallery_status_error) + "\n" + (error ?: "")
                 binding.textGalleryStatus.isVisible = true
@@ -169,10 +179,11 @@ class MainActivity : AppCompatActivity() {
             } else {
                 // Сохраняем кэш для офлайн-работы
                 settings.cachedGalleryJson = GalleryCodec.encode(images)
+                gallery = images
+                renderGallery(images)
                 binding.textGalleryStatus.isVisible = false
                 binding.textTapHint.isVisible = true
             }
-            renderGallery(images)
         }
     }
 
@@ -273,9 +284,14 @@ class MainActivity : AppCompatActivity() {
     private fun applyImage(image: BingImage) {
         Toast.makeText(this, R.string.toast_applying, Toast.LENGTH_SHORT).show()
         binding.buttonChangeNow.isEnabled = false
+        showProgress(null, getString(R.string.wallpaper_status_downloading))
         lifecycleScope.launch {
-            val ok = WallpaperApplier.applyImage(this@MainActivity, image)
+            val ok = WallpaperApplier.applyImage(this@MainActivity, image) { p ->
+                // Колбэк приходит с фонового диспетчера — UI обновляем на главном.
+                Handler(Looper.getMainLooper()).post { onWallpaperProgress(p) }
+            }
             binding.buttonChangeNow.isEnabled = true
+            hideProgress()
             if (ok) {
                 val info = "${image.dateLabel()} • ${image.copyright}"
                 settings.lastWallpaperInfo = info
@@ -289,6 +305,53 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
+    }
+
+    // ──────────────────────────────────────────
+    // Индикатор загрузки обоев
+    // ──────────────────────────────────────────
+
+    private fun onWallpaperProgress(p: WallpaperProgress) {
+        when (p) {
+            is WallpaperProgress.CacheHit ->
+                showProgress(null, getString(R.string.wallpaper_status_cache))
+            is WallpaperProgress.Downloading -> {
+                val text = if (p.progress != null) {
+                    getString(R.string.wallpaper_status_downloading_percent, p.progress)
+                } else {
+                    getString(R.string.wallpaper_status_downloading)
+                }
+                showProgress(p.progress, text)
+            }
+            WallpaperProgress.Decoding ->
+                showProgress(null, getString(R.string.wallpaper_status_decoding))
+            WallpaperProgress.Setting ->
+                showProgress(null, getString(R.string.wallpaper_status_setting))
+        }
+    }
+
+    /**
+     * Показывает индикатор. [percent]: 0..100 — детерминированный прогресс,
+     * null — спиннер (стадия идёт, но размер неизвестен). [textOverride] —
+     * подпись вместо стандартной.
+     */
+    private fun showProgress(percent: Int?, textOverride: String? = null) {
+        binding.wallpaperProgressView.isVisible = true
+        val bar = binding.wallpaperProgress
+        bar.isIndeterminate = percent == null
+        if (percent != null) bar.progress = percent
+        if (textOverride != null) {
+            binding.wallpaperStatusText.text = textOverride
+        } else if (percent != null) {
+            binding.wallpaperStatusText.text =
+                getString(R.string.wallpaper_status_downloading_percent, percent)
+        }
+    }
+
+    private fun hideProgress() {
+        binding.wallpaperProgressView.isVisible = false
+        binding.wallpaperProgress.progress = 0
+        binding.wallpaperProgress.isIndeterminate = true
     }
 
     /** Запускает диагностику сети и показывает результат в AlertDialog с кнопкой копирования. */

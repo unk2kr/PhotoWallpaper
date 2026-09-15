@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -33,6 +34,39 @@
             android:layout_marginTop="24dp"
             android:text="@string/gallery_title"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <!-- Индикатор скачивания/установки обоев -->
+        <LinearLayout
+            android:id="@+id/wallpaperProgressView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="4dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ProgressBar
+                android:id="@+id/wallpaperProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:indeterminate="true"
+                android:max="100"
+                android:progress="0" />
+
+            <TextView
+                android:id="@+id/wallpaperStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:ellipsize="start"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                tools:text="Скачивание обоев… 45%" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/textGalleryStatus"

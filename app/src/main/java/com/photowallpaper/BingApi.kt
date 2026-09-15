@@ -71,8 +71,16 @@ object LoremPicsumApi {
         }
     }
 
-    /** Скачивает изображение по URL в File. Возвращает HTTP-код. */
-    suspend fun downloadHttp(url: String, dest: File): Int =
+    /**
+     * Скачивает изображение по URL в File. Возвращает HTTP-код.
+     * [onProgress] вызывается по мере чтения байтов: 0..100 при известном
+     * Content-Length, null — когда размер ответа неизвестен.
+     */
+    suspend fun downloadHttp(
+        url: String,
+        dest: File,
+        onProgress: (Int?) -> Unit = {}
+    ): Int =
         withContext(Dispatchers.IO) {
             val request = browserRequest(url)
                 .build()
@@ -81,7 +89,7 @@ object LoremPicsumApi {
                 if (!resp.isSuccessful) return@withContext code
                 val body = resp.body ?: return@withContext code
                 dest.parentFile?.mkdirs()
-                dest.outputStream().use { out -> body.byteStream().copyTo(out) }
+                copyWithProgress(body.byteStream(), dest, body.contentLength(), onProgress)
                 code
             }
         }
@@ -186,6 +194,38 @@ data class BingImage(
 }
 
 /**
+ * Копирует поток в файл, сообщая [onProgress] о проценте готового (0..100),
+ * когда известен [totalBytes] (Content-Length), иначе — null
+ * (индефинитный прогресс). Общий для всех источников в этом файле.
+ */
+private fun copyWithProgress(
+    input: java.io.InputStream,
+    dest: File,
+    totalBytes: Long,
+    onProgress: (Int?) -> Unit
+) {
+    val total = if (totalBytes > 0) totalBytes else -1L
+    var received = 0L
+    val buffer = ByteArray(16 * 1024)
+    dest.outputStream().use { out ->
+        while (true) {
+            val read = input.read(buffer)
+            if (read == -1) break
+            out.write(buffer, 0, read)
+            received += read
+            val pct = if (total > 0) {
+                ((received * 100L) / total).toInt().coerceIn(0, 100)
+            } else {
+                null
+            }
+            onProgress(pct)
+        }
+    }
+    onProgress(100)
+}
+
+
+/**
  * Bing Daily Wallpaper — публичный эндпоинт БЕЗ ключей и авторизации:
  * https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8
  *
@@ -252,8 +292,13 @@ object BingApi {
     /**
      * Скачивает изображение в файл. Возвращает HTTP-код:
      * 200 = успех; иначе — код ответа сервера. Бросает IOException при сетевом сбое.
+     * [onProgress]: 0..100 при известном Content-Length, null — размер неизвестен.
      */
-    suspend fun downloadHttp(url: String, dest: File): Int =
+    suspend fun downloadHttp(
+        url: String,
+        dest: File,
+        onProgress: (Int?) -> Unit = {}
+    ): Int =
         withContext(Dispatchers.IO) {
             val request = browserRequest(url).build()
             client.newCall(request).execute().use { resp ->
@@ -261,7 +306,7 @@ object BingApi {
                 if (!resp.isSuccessful) return@withContext code
                 val body = resp.body ?: return@withContext code
                 dest.parentFile?.mkdirs()
-                dest.outputStream().use { out -> body.byteStream().copyTo(out) }
+                copyWithProgress(body.byteStream(), dest, body.contentLength(), onProgress)
                 code
             }
         }

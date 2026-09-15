@@ -7,6 +7,7 @@
 
     <string name="gallery_title">Галерея (последние 8 фото)</string>
     <string name="gallery_status_loading">Загрузка галереи…</string>
+    <string name="gallery_status_refreshing">Обновление галереи…</string>
     <string name="gallery_status_error">Не удалось загрузить галерею. Проверьте интернет.</string>
     <string name="tap_hint">Тап по фото — сразу поставить его обоями</string>
 
@@ -27,6 +28,12 @@
     <string name="error_title">Последняя ошибка</string>
 
     <string name="change_now">Сменить сейчас</string>
+
+    <string name="wallpaper_status_downloading">Скачивание обоев…</string>
+    <string name="wallpaper_status_downloading_percent">Скачивание обоев… %1$d%%</string>
+    <string name="wallpaper_status_cache">Обои уже скачаны — загрузка из кэша…</string>
+    <string name="wallpaper_status_decoding">Обработка изображения…</string>
+    <string name="wallpaper_status_setting">Установка обоев…</string>
 
     <string name="toast_applying">Скачиваю и устанавливаю…</string>
     <string name="toast_applied_ok">Обои обновлены</string>
