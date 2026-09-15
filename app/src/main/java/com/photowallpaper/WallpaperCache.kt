@@ -68,7 +68,7 @@ object WallpaperCache {
     // Публичный API
     // ──────────────────────────────────────────
 
-    /** Файл с обоями, если они уже в кеше, иначе null. Файл переносится в конец (самый свежий). */
+    /** Файл с обоями, если они уже в кеше, иначе null. Порядок индекса при чтении не меняется — обновляется только [put]. */
     suspend fun get(context: Context, key: String): File? =
         withContext(Dispatchers.IO) {
             val entries = readEntries(context)
@@ -79,8 +79,6 @@ object WallpaperCache {
                 remove(context, key)
                 return@withContext null
             }
-            // LRU: переносим в конец списка (самый свежий).
-            writeEntries(context, entries.filter { it != key } + key)
             file
         }
 

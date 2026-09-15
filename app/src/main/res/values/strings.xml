@@ -8,6 +8,9 @@
     <string name="gallery_title">Галерея (последние 8 фото)</string>
     <string name="gallery_status_loading">Загрузка галереи…</string>
     <string name="gallery_status_refreshing">Обновление галереи…</string>
+    <string name="gallery_step_bing">Bing…</string>
+    <string name="gallery_step_wallhaven">Wallhaven…</string>
+    <string name="gallery_step_picsum">Picsum…</string>
     <string name="gallery_status_error">Не удалось загрузить галерею. Проверьте интернет.</string>
     <string name="tap_hint">Тап по фото — сразу поставить его обоями</string>
 

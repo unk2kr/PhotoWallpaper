@@ -64,7 +64,7 @@ object LoremPicsumApi {
                     copyright = "$author via Picsum",
                     copyrightLink = "",
                     url = rawUrl,
-                    previewUrl = "https://picsum.photos/id/$id/320/200",
+                    previewUrl = "https://picsum.photos/id/$id/160/100",
                     source = BingImage.SOURCE_PICSUM
                 )
             }
@@ -140,7 +140,7 @@ data class BingImage(
      */
     fun previewUrl(): String = when {
         this.previewUrl.isNotBlank() -> this.previewUrl
-        source == SOURCE_BING -> imageUrl("1366x768")
+        source == SOURCE_BING -> "https://www.bing.com$urlBase&w=320&h=180"
         url.isNotBlank() -> url
         else -> imageUrl("1366x768")
     }
@@ -258,6 +258,12 @@ object BingApi {
         .dns(DoHResolver.dohFallbackDns())
         .build()
 
+    /** Клиент для JSON-списка: маленький ответ — короткие таймауты, чтобы галерея не «зависала». */
+    private val listClient = client.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .build()
+
     /** Создаёт Request.Builder с десктопными браузерными заголовками. */
     private fun browserRequest(url: String) = Request.Builder()
         .url(url)
@@ -270,7 +276,7 @@ object BingApi {
     suspend fun fetchWallpapers(): List<BingImage> = withContext(Dispatchers.IO) {
         val request = browserRequest(archiveUrl())
             .build()
-        client.newCall(request).execute().use { resp ->
+        listClient.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val body = resp.body ?: throw IOException("Пустой ответ")
             val json = JSONObject(body.string())
@@ -379,21 +385,28 @@ typealias ImageFetchResult = Pair<List<BingImage>, String?>
  *  2. Wallhaven (топ за сегодня, SFW)
  *  3. Lorem Picsum (запасной — случайные красивые фото)
  * Возвращает Pair<список, причинаПоследнейОшибки>. Пустой список = все недоступны.
+ * [onStep] — текущий шаг загрузки (id строки из strings.xml) для вывода в UI.
  */
-suspend fun fetchWallpaperList(settings: SettingsManager): ImageFetchResult {
+suspend fun fetchWallpaperList(
+    settings: SettingsManager,
+    onStep: (Int) -> Unit = {}
+): ImageFetchResult {
     // Попытка 1: Bing
+    onStep(R.string.gallery_step_bing)
     runCatching { BingApi.fetchWallpapers() }.onSuccess { list ->
         if (list.isNotEmpty()) return list to null
     }
     var lastError = "Bing недоступен"
 
     // Попытка 2: Wallhaven — топ за сегодня
+    onStep(R.string.gallery_step_wallhaven)
     runCatching { WallhavenApi.fetchTop() }.onSuccess { list ->
         if (list.isNotEmpty()) return list to null
     }
     lastError += "; Wallhaven недоступен"
 
     // Попытка 3: Lorem Picsum — публичный сервис без ключей
+    onStep(R.string.gallery_step_picsum)
     runCatching { LoremPicsumApi.fetchPhotos() }.onSuccess { list ->
         if (list.isNotEmpty()) return list to null
     }

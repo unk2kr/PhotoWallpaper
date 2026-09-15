@@ -74,7 +74,8 @@ object WallhavenApi {
                     copyright = "$uploader via Wallhaven",
                     copyrightLink = o.optString("url", "https://wallhaven.cc/w/$id"),
                     url = path,
-                    previewUrl = thumbs?.optString("small", "").orEmpty(),
+                    previewUrl = thumbs?.optString("thumb", "").orEmpty()
+                        .ifBlank { thumbs?.optString("small", "").orEmpty() },
                     source = BingImage.SOURCE_WALLHAVEN
                 )
             }

@@ -169,7 +169,9 @@ class MainActivity : AppCompatActivity() {
         }
         binding.textGalleryStatus.isVisible = true
         lifecycleScope.launch {
-            val (images, error) = fetchWallpaperList(settings)
+            val (images, error) = fetchWallpaperList(settings) { step ->
+                binding.textGalleryStatus.text = getString(step)
+            }
             if (images.isEmpty()) {
                 renderError(error)
                 binding.textGalleryStatus.text =
