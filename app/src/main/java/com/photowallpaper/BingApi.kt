@@ -29,10 +29,11 @@ object LoremPicsumApi {
         "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .dns(DoHResolver.dohFallbackDns())
         .build()
 
     /** Создаёт Request.Builder с десктопными браузерными заголовками. */
@@ -62,7 +63,9 @@ object LoremPicsumApi {
                     urlBase = "/picsum/$id",
                     copyright = "$author via Picsum",
                     copyrightLink = "",
-                    url = rawUrl
+                    url = rawUrl,
+                    previewUrl = "https://picsum.photos/id/$id/320/200",
+                    source = BingImage.SOURCE_PICSUM
                 )
             }
         }
@@ -100,7 +103,10 @@ object LoremPicsumApi {
  * @param startdate    "20260908"
  * @param urlBase      "/th?id=OHR.BeechEngland_ROW3028721183"
  * @param copyright    подпись/автор
- * @param copyrightLink ссылка Bing на место на фото
+ * @param copyrightLink ссылка на место фото
+ * @param url          для Bing — сырой url из ответа; для Wallhaven/Picsum — полный URL картинки
+ * @param previewUrl   URL превью для галереи (у Wallhaven — готовая маленькая картинка)
+ * @param source       источник фото (Bing / Wallhaven / Picsum)
  */
 data class BingImage(
     val startdate: String,
@@ -108,7 +114,11 @@ data class BingImage(
     val copyright: String,
     val copyrightLink: String,
     /** Сырой url из ответа Bing (уже с "..._1920x1080.jpg&rf=...&pid=hp"). */
-    val url: String = ""
+    val url: String = "",
+    /** Готовый URL превью для галереи (Wallhaven). Пусто — использовать imageUrl(). */
+    val previewUrl: String = "",
+    /** Источник: Bing / Wallhaven / Picsum. */
+    val source: String = BingImage.SOURCE_BING
 ) {
     /**
      * URL изображения. size: "UHD" (3840x2160) — для обоев,
@@ -120,14 +130,27 @@ data class BingImage(
     /**
      * URL превью для галереи — лёгкий размер, чтобы не тратить трафик.
      */
-    fun previewUrl(): String = imageUrl("1366x768")
+    fun previewUrl(): String = when {
+        this.previewUrl.isNotBlank() -> this.previewUrl
+        source == SOURCE_BING -> imageUrl("1366x768")
+        url.isNotBlank() -> url
+        else -> imageUrl("1366x768")
+    }
 
     /**
      * Кандидаты для скачивания обоев — от лучшего к запасному.
-     * Для телефонов FullHD+ (Pixel 6 и др.) используем 1920x1080 вместо UHD,
-     * чтобы уменьшить размер файла и трафик. UHD остаётся запасным вариантом.
+     *
+     * Bing: собирает URL по шаблону (1920x1080 / UHD, плюс сырой url ответа).
+     * Wallhaven/Picsum: url уже полный, просто возвращаем его (плюс превью
+     * Wallhaven как запасной — оно тоже является полной картинкой).
      */
     fun downloadCandidates(context: Context): List<String> {
+        if (source != SOURCE_BING) {
+            val list = mutableListOf<String>()
+            if (url.isNotBlank()) list.add(url)
+            if (previewUrl.isNotBlank() && previewUrl !in list) list.add(previewUrl)
+            return list
+        }
         val size = DisplayUtils.wallpaperSize(context)
         val isFullHdOrLess = maxOf(size.width, size.height) <= 2400
         val list = if (isFullHdOrLess) {
@@ -145,6 +168,12 @@ data class BingImage(
             list.add("https://www.bing.com$url")
         }
         return list
+    }
+
+    companion object {
+        const val SOURCE_BING = "bing"
+        const val SOURCE_WALLHAVEN = "wallhaven"
+        const val SOURCE_PICSUM = "picsum"
     }
 
     /** "8 сентября 2026" по startdate. */
@@ -182,10 +211,11 @@ object BingApi {
     private fun archiveUrl(): String = "$ARCHIVE_BASE&mkt=${market()}"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(180, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .dns(DoHResolver.dohFallbackDns())
         .build()
 
     /** Создаёт Request.Builder с десктопными браузерными заголовками. */
@@ -212,7 +242,8 @@ object BingApi {
                     urlBase = o.getString("urlbase"),
                     copyright = o.optString("copyright", ""),
                     copyrightLink = o.optString("copyrightlink", ""),
-                    url = o.optString("url", "")
+                    url = o.optString("url", ""),
+                    source = BingImage.SOURCE_BING
                 )
             }
         }
@@ -261,6 +292,8 @@ object GalleryCodec {
                     .put("copyright", it.copyright)
                     .put("copyrightlink", it.copyrightLink)
                     .put("url", it.url)
+                    .put("previewurl", it.previewUrl)
+                    .put("source", it.source)
             )
         }
         return arr.toString()
@@ -277,7 +310,9 @@ object GalleryCodec {
                     urlBase = o.getString("urlbase"),
                     copyright = o.optString("copyright", ""),
                     copyrightLink = o.optString("copyrightlink", ""),
-                    url = o.optString("url", "")
+                    url = o.optString("url", ""),
+                    previewUrl = o.optString("previewurl", ""),
+                    source = o.optString("source", BingImage.SOURCE_BING)
                 )
             }
         } catch (e: Exception) {
@@ -294,9 +329,10 @@ object GalleryCodec {
 typealias ImageFetchResult = Pair<List<BingImage>, String?>
 
 /**
- * Пытается загрузить фото из нескольких источников по очереди.
+ * Пытается загрузить фото из нескольких источников по очереди:
  *  1. Bing Daily Wallpaper (основной)
- *  2. Lorem Picsum (запасной — случайные красивые фото)
+ *  2. Wallhaven (топ за сегодня, SFW)
+ *  3. Lorem Picsum (запасной — случайные красивые фото)
  * Возвращает Pair<список, причинаПоследнейОшибки>. Пустой список = все недоступны.
  */
 suspend fun fetchWallpaperList(settings: SettingsManager): ImageFetchResult {
@@ -306,7 +342,13 @@ suspend fun fetchWallpaperList(settings: SettingsManager): ImageFetchResult {
     }
     var lastError = "Bing недоступен"
 
-    // Попытка 2: Lorem Picsum — публичный сервис без ключей
+    // Попытка 2: Wallhaven — топ за сегодня
+    runCatching { WallhavenApi.fetchTop() }.onSuccess { list ->
+        if (list.isNotEmpty()) return list to null
+    }
+    lastError += "; Wallhaven недоступен"
+
+    // Попытка 3: Lorem Picsum — публичный сервис без ключей
     runCatching { LoremPicsumApi.fetchPhotos() }.onSuccess { list ->
         if (list.isNotEmpty()) return list to null
     }
