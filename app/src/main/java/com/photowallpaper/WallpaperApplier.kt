@@ -69,7 +69,8 @@ object WallpaperApplier {
             if (bitmap != null) {
                 progressListener?.onProgress(WallpaperProgress.Setting)
                 return try {
-                    WallpaperManager.getInstance(appContext).setBitmap(bitmap)
+                    WallpaperManager.getInstance(appContext)
+                        .setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
                     Log.i(TAG, "Обои установлены из кеша: ${image.startdate}")
                     true
                 } catch (e: Exception) {
@@ -155,7 +156,8 @@ object WallpaperApplier {
         // 3) Ставим обоями.
         progressListener?.onProgress(WallpaperProgress.Setting)
         return try {
-            WallpaperManager.getInstance(appContext).setBitmap(bitmap)
+            WallpaperManager.getInstance(appContext)
+                .setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
             Log.i(TAG, "Обои установлены: ${image.startdate}")
             true
         } catch (e: Exception) {
