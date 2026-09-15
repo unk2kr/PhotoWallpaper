@@ -69,7 +69,7 @@ object WallpaperCache {
     // ──────────────────────────────────────────
 
     /** Файл с обоями, если они уже в кеше, иначе null. Файл переносится в конец (самый свежий). */
-    fun get(context: Context, key: String): File? =
+    suspend fun get(context: Context, key: String): File? =
         withContext(Dispatchers.IO) {
             val entries = readEntries(context)
             if (key !in entries) return@withContext null
@@ -89,20 +89,19 @@ object WallpaperCache {
      * записи, пока их не станет [MAX_ENTRIES]. Повторное сохранение
      * одного и того же ключа не дублирует запись — просто «обновляет» её.
      */
-    fun put(context: Context, key: String, file: File): Boolean =
+    suspend fun put(context: Context, key: String, file: File): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 val target = fileFor(context, key)
                 if (file.absolutePath != target.absolutePath) {
-                    if (file.renameTo(target)) {
-                        file = target
-                    } else {
+                    if (!file.renameTo(target)) {
                         file.copyTo(target, overwrite = true)
                         file.delete()
                     }
                 }
-                var entries = readEntries(context)
-                entries = entries.filter { it != key } + key
+                val entries = readEntries(context).toMutableList()
+                entries.remove(key)
+                entries.add(key)
                 while (entries.size > MAX_ENTRIES) {
                     val evicted = entries.removeAt(0)
                     fileFor(context, evicted).delete()
